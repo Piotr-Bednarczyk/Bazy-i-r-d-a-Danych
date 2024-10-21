@@ -1,0 +1,43 @@
+Polecenie I i II wykonane za pomocą interfejsów.
+
+Polecenie kopiowania wygenerowane przez Oracle-a:
+
+declare
+  l_sql varchar2(32767);
+  c_tab_comment varchar2(32767);
+  procedure run(p_sql varchar2) as
+  begin 
+     execute immediate p_sql;
+     
+  end; 
+begin
+run('create table "BEDNARCZYKP".Sales as select * from "HR"."SALES" where '||11||' = 11');
+  begin
+  select comments into c_tab_comment from sys.all_TAB_comments where owner = 'HR' and table_name = 'SALES' and comments is not null;
+  run('comment on table BEDNARCZYKP.Sales is '||''''||REPLACE(c_tab_comment, q'[']', q'['']')||'''');
+
+  for tc in (select column_name from sys.all_tab_cols where owner = 'HR' and table_name = 'SALES')
+      loop
+     for c in (select comments from sys.all_col_comments where owner = 'HR' and table_name = 'SALES' and column_name=tc.column_name) 
+     loop 
+     run ('comment on column BEDNARCZYKP.Sales.'||tc.column_name||' is '||''''||REPLACE(c.comments, q'[']', q'['']')||'''');
+   end loop;
+  end loop;
+  EXCEPTION
+    WHEN OTHERS THEN NULL; 
+  end;
+end;
+
+Polecenie III
+1.
+SELECT 
+    Last_Name||' - '||Salary as Wynagrodzenie
+FROM 
+    Employees
+WHERE
+    Salary>2000 and Salary<7000 and (department_id = 20 or department_id = 50) 
+ORDER BY
+    Last_name
+
+2.
+			
