@@ -1,0 +1,159 @@
+DECLARE
+    -- Deklaracja zmiennych dla Zadania 1 i 2
+    numer_max NUMBER;
+    nazwa_departamentu DEPARTMENTS.DEPARTMENT_NAME%TYPE := 'EDUCATION';
+BEGIN
+    -- Zadanie 1 i 2: Dodanie departamentu i zmiana LOCATION_ID
+    SELECT MAX(DEPARTMENT_ID) INTO numer_max FROM DEPARTMENTS;
+
+    INSERT INTO DEPARTMENTS (DEPARTMENT_ID, DEPARTMENT_NAME, MANAGER_ID, LOCATION_ID)
+    VALUES (numer_max + 10, nazwa_departamentu, NULL, NULL);
+
+    UPDATE DEPARTMENTS
+    SET LOCATION_ID = 3000
+    WHERE DEPARTMENT_ID = numer_max + 10;
+
+    DBMS_OUTPUT.PUT_LINE('Dodano i zaktualizowano departament o ID: ' || (numer_max + 10));
+
+    -- Zadanie 3: Tworzenie tabeli NOWA i dodanie liczb
+    BEGIN
+        EXECUTE IMMEDIATE 'DROP TABLE NOWA';
+    EXCEPTION
+        WHEN OTHERS THEN
+            NULL; -- Ignoruj błąd, jeśli tabela nie istnieje
+    END;
+
+    EXECUTE IMMEDIATE 'CREATE TABLE NOWA (VALUE VARCHAR2(10))';
+
+    FOR i IN 1..10 LOOP
+        IF i NOT IN (4, 6) THEN
+            INSERT INTO NOWA (VALUE) VALUES (TO_CHAR(i));
+        END IF;
+    END LOOP;
+
+    DBMS_OUTPUT.PUT_LINE('Dodano liczby od 1 do 10 bez 4 i 6 do tabeli NOWA');
+
+    -- Zadanie 4: Wyciąganie informacji z tabeli countries
+    DECLARE
+        country_info COUNTRIES%ROWTYPE;
+    BEGIN
+        SELECT * INTO country_info FROM COUNTRIES WHERE COUNTRY_ID = 'CA';
+        DBMS_OUTPUT.PUT_LINE('Kraj: ' || country_info.COUNTRY_NAME || ', Region ID: ' || country_info.REGION_ID);
+    END;
+
+    -- Zadanie 5: Kursor dla wynagrodzeń w departamencie 50
+    DECLARE
+        CURSOR c_wynagrodzenia IS 
+            SELECT LAST_NAME, SALARY FROM EMPLOYEES WHERE DEPARTMENT_ID = 50;
+        last_name EMPLOYEES.LAST_NAME%TYPE;
+        salary EMPLOYEES.SALARY%TYPE;
+    BEGIN
+        OPEN c_wynagrodzenia;
+
+        LOOP
+            FETCH c_wynagrodzenia INTO last_name, salary;
+            EXIT WHEN c_wynagrodzenia%NOTFOUND;
+
+            IF salary > 3100 THEN
+                DBMS_OUTPUT.PUT_LINE(last_name || ': nie dawać podwyżki');
+            ELSE
+                DBMS_OUTPUT.PUT_LINE(last_name || ': dać podwyżkę');
+            END IF;
+        END LOOP;
+
+        CLOSE c_wynagrodzenia;
+    END;
+
+    -- Zadanie 6: Kursor z parametrami dla zakresu zarobków i części imienia
+    DECLARE
+        CURSOR c_pracownicy(p_min_salary NUMBER, p_max_salary NUMBER, p_name_part VARCHAR2) IS
+            SELECT SALARY, FIRST_NAME, LAST_NAME
+            FROM EMPLOYEES
+            WHERE SALARY BETWEEN p_min_salary AND p_max_salary 
+              AND LOWER(FIRST_NAME) LIKE '%' || LOWER(p_name_part) || '%';
+    BEGIN
+        DBMS_OUTPUT.PUT_LINE('Pracownicy z widełkami 1000-5000 z "a":');
+        FOR pracownik IN c_pracownicy(1000, 5000, 'a') LOOP
+            DBMS_OUTPUT.PUT_LINE(pracownik.FIRST_NAME || ' ' || pracownik.LAST_NAME || ', Zarobki: ' || pracownik.SALARY);
+        END LOOP;
+
+        DBMS_OUTPUT.PUT_LINE('Pracownicy z widełkami 5000-20000 z "u":');
+        FOR pracownik IN c_pracownicy(5000, 20000, 'u') LOOP
+            DBMS_OUTPUT.PUT_LINE(pracownik.FIRST_NAME || ' ' || pracownik.LAST_NAME || ', Zarobki: ' || pracownik.SALARY);
+        END LOOP;
+    END;
+
+    -- Tworzenie sekwencji EMPLOYEES_SEQ (jeśli nie istnieje)
+    BEGIN
+        EXECUTE IMMEDIATE 'CREATE SEQUENCE EMPLOYEES_SEQ START WITH 1 INCREMENT BY 1';
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Sekwencja EMPLOYEES_SEQ już istnieje.');
+    END;
+
+    -- Zadanie 7: Tworzenie procedury add_job
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE PROCEDURE add_job(p_job_id JOBS.JOB_ID%TYPE, p_job_title JOBS.JOB_TITLE%TYPE) IS
+    BEGIN
+        INSERT INTO JOBS (JOB_ID, JOB_TITLE, MIN_SALARY, MAX_SALARY)
+        VALUES (p_job_id, p_job_title, NULL, NULL);
+        DBMS_OUTPUT.PUT_LINE('Dodano pracę: ' || p_job_id || '' - '' || p_job_title);
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd: ' || SQLERRM);
+    END;';
+
+    -- Zadanie 8: Tworzenie procedury update_job_title
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE PROCEDURE update_job_title(p_job_id JOBS.JOB_ID%TYPE, p_new_title JOBS.JOB_TITLE%TYPE) IS
+    BEGIN
+        UPDATE JOBS
+        SET JOB_TITLE = p_new_title
+        WHERE JOB_ID = p_job_id;
+        IF SQL%ROWCOUNT = 0 THEN
+            RAISE_APPLICATION_ERROR(-20001, ''Nie zaktualizowano żadnego wiersza'');
+        END IF;
+        DBMS_OUTPUT.PUT_LINE('Zaktualizowano tytuł pracy: ' || p_job_id);
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd: ' || SQLERRM);
+    END;';
+
+    -- Zadanie 9: Tworzenie procedury delete_job
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE PROCEDURE delete_job(p_job_id JOBS.JOB_ID%TYPE) IS
+    BEGIN
+        DELETE FROM JOBS WHERE JOB_ID = p_job_id;
+        IF SQL%ROWCOUNT = 0 THEN
+            RAISE_APPLICATION_ERROR(-20002, ''Nie usunięto żadnego wiersza'');
+        END IF;
+        DBMS_OUTPUT.PUT_LINE('Usunięto pracę o ID: ' || p_job_id);
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd: ' || SQLERRM);
+    END;';
+
+    -- Zadanie 10: Tworzenie procedury get_salary_and_name
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE PROCEDURE get_salary_and_name(p_employee_id EMPLOYEES.EMPLOYEE_ID%TYPE, p_salary OUT EMPLOYEES.SALARY%TYPE, p_last_name OUT EMPLOYEES.LAST_NAME%TYPE) IS
+    BEGIN
+        SELECT SALARY, LAST_NAME INTO p_salary, p_last_name 
+        FROM EMPLOYEES WHERE EMPLOYEE_ID = p_employee_id;
+        DBMS_OUTPUT.PUT_LINE('Pracownik: ' || p_last_name || '', Zarobki: '' || p_salary);
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            DBMS_OUTPUT.PUT_LINE('Nie znaleziono pracownika o ID: ' || p_employee_id);
+    END;';
+
+    -- Zadanie 11: Tworzenie procedury add_employee
+    EXECUTE IMMEDIATE 'CREATE OR REPLACE PROCEDURE add_employee(p_first_name EMPLOYEES.FIRST_NAME%TYPE, p_last_name EMPLOYEES.LAST_NAME%TYPE, p_salary EMPLOYEES.SALARY%TYPE) IS
+    BEGIN
+        IF p_salary > 20000 THEN
+            RAISE_APPLICATION_ERROR(-20003, ''Wynagrodzenie nie może przekroczyć 20000'');
+        END IF;
+        INSERT INTO EMPLOYEES (EMPLOYEE_ID, FIRST_NAME, LAST_NAME, SALARY, DEPARTMENT_ID)
+        VALUES (EMPLOYEES_SEQ.NEXTVAL, p_first_name, p_last_name, p_salary, NULL);
+        DBMS_OUTPUT.PUT_LINE('Dodano pracownika: ' || p_first_name || '' '' || p_last_name);
+    EXCEPTION
+        WHEN OTHERS THEN
+            DBMS_OUTPUT.PUT_LINE('Błąd: ' || SQLERRM);
+    END;';
+
+END;
+/
