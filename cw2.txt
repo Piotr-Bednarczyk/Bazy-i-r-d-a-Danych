@@ -1,43 +1,225 @@
-Polecenie I i II wykonane za pomocą interfejsów.
 
-Polecenie kopiowania wygenerowane przez Oracle-a:
+### Usunięcie wszystkich tabel ze swojej bazy
+```sql
+BEGIN
+   FOR t IN (SELECT table_name FROM user_tables) LOOP
+      EXECUTE IMMEDIATE 'DROP TABLE ' || t.table_name || ' CASCADE CONSTRAINTS';
+   END LOOP;
+END;
+/
+```
 
-declare
-  l_sql varchar2(32767);
-  c_tab_comment varchar2(32767);
-  procedure run(p_sql varchar2) as
-  begin 
-     execute immediate p_sql;
-     
-  end; 
-begin
-run('create table "BEDNARCZYKP".Sales as select * from "HR"."SALES" where '||11||' = 11');
-  begin
-  select comments into c_tab_comment from sys.all_TAB_comments where owner = 'HR' and table_name = 'SALES' and comments is not null;
-  run('comment on table BEDNARCZYKP.Sales is '||''''||REPLACE(c_tab_comment, q'[']', q'['']')||'''');
+### Skopiowanie tabel użytkownika HR
+```sql
+BEGIN
+   FOR t IN (SELECT table_name FROM all_tables WHERE owner = 'HR') LOOP
+      EXECUTE IMMEDIATE 'CREATE TABLE ' || t.table_name || ' AS SELECT * FROM HR.' || t.table_name;
+   END LOOP;
 
-  for tc in (select column_name from sys.all_tab_cols where owner = 'HR' and table_name = 'SALES')
-      loop
-     for c in (select comments from sys.all_col_comments where owner = 'HR' and table_name = 'SALES' and column_name=tc.column_name) 
-     loop 
-     run ('comment on column BEDNARCZYKP.Sales.'||tc.column_name||' is '||''''||REPLACE(c.comments, q'[']', q'['']')||'''');
-   end loop;
-  end loop;
-  EXCEPTION
-    WHEN OTHERS THEN NULL; 
-  end;
-end;
+   FOR c IN (SELECT * FROM all_constraints WHERE owner = 'HR') LOOP
+      EXECUTE IMMEDIATE 'ALTER TABLE ' || c.table_name || ' ADD CONSTRAINT ' || c.constraint_name || ' ' || c.constraint_type || ' (' || c.search_condition || ')';
+   END LOOP;
+END;
+/
+```
 
-Polecenie III
-1.
+---
+
+### Perspektywa 1: Nazwisko i wynagrodzenie
+```sql
+CREATE OR REPLACE VIEW wynagrodzenie AS
 SELECT 
-    Last_Name||' - '||Salary as Wynagrodzenie
+   last_name || ' - ' || salary AS wynagrodzenie
 FROM 
-    Employees
-WHERE
-    Salary>2000 and Salary<7000 and (department_id = 20 or department_id = 50) 
-ORDER BY
-    Last_name
+   employees
+WHERE 
+   department_id IN (20, 50) AND salary BETWEEN 2000 AND 7000
+ORDER BY 
+   last_name;
+```
 
-2.
-			
+---
+
+### Perspektywa 2: Data zatrudnienia, nazwisko i podana kolumna
+```sql
+CREATE OR REPLACE VIEW zatrudnienie_2005 AS
+SELECT 
+   hire_date, 
+   last_name, 
+   <podana_kolumna>
+FROM 
+   employees
+WHERE 
+   manager_id IS NOT NULL AND 
+   EXTRACT(YEAR FROM hire_date) = 2005
+ORDER BY 
+   <podana_kolumna>;
+```
+
+---
+
+### Perspektywa 3: Imiona, nazwiska, zarobki i telefon
+```sql
+CREATE OR REPLACE VIEW imiona_nazwiska AS
+SELECT 
+   first_name || ' ' || last_name AS pelne_imie_nazwisko,
+   salary, 
+   phone_number
+FROM 
+   employees
+WHERE 
+   SUBSTR(last_name, 3, 1) = 'e' AND first_name LIKE '%<część_imienia>%'
+ORDER BY 
+   pelne_imie_nazwisko DESC, salary ASC;
+```
+
+---
+
+### Perspektywa 4: Liczba miesięcy i dodatek
+```sql
+CREATE OR REPLACE VIEW liczba_miesiecy_dodatek AS
+SELECT 
+   first_name || ' ' || last_name AS pelne_imie_nazwisko,
+   ROUND(MONTHS_BETWEEN(SYSDATE, hire_date)) AS liczba_miesiecy,
+   CASE
+      WHEN ROUND(MONTHS_BETWEEN(SYSDATE, hire_date)) <= 150 THEN 0.1 * salary
+      WHEN ROUND(MONTHS_BETWEEN(SYSDATE, hire_date)) <= 200 THEN 0.2 * salary
+      ELSE 0.3 * salary
+   END AS wysokosc_dodatku
+FROM 
+   employees
+ORDER BY 
+   liczba_miesiecy;
+```
+
+---
+
+### Perspektywa 5: Minimalna płaca wyższa niż 5000
+```sql
+CREATE OR REPLACE VIEW dzialy_minimalna_placa AS
+SELECT 
+   department_id, 
+   ROUND(AVG(salary)) AS srednia_placa, 
+   SUM(salary) AS suma_plac
+FROM 
+   employees
+GROUP BY 
+   department_id
+HAVING 
+   MIN(salary) > 5000;
+```
+
+---
+
+### Perspektywa 6: Pracownicy w Toronto
+```sql
+CREATE OR REPLACE VIEW pracownicy_toronto AS
+SELECT 
+   last_name, 
+   department_id, 
+   department_name, 
+   job_id
+FROM 
+   employees e
+JOIN 
+   departments d ON e.department_id = d.department_id
+WHERE 
+   location_id = (SELECT location_id FROM locations WHERE city = 'Toronto');
+```
+
+---
+
+### Perspektywa 7: Pracownicy współpracujący z Jennifer
+```sql
+CREATE OR REPLACE VIEW wspolpracownicy_jennifer AS
+SELECT 
+   e1.first_name AS imie, 
+   e1.last_name AS nazwisko, 
+   e2.first_name AS imie_wspolpracownika, 
+   e2.last_name AS nazwisko_wspolpracownika
+FROM 
+   employees e1
+JOIN 
+   employees e2 ON e1.department_id = e2.department_id
+WHERE 
+   e1.first_name = 'Jennifer' AND e1.employee_id <> e2.employee_id;
+```
+
+---
+
+### Perspektywa 8: Departamenty bez pracowników
+```sql
+CREATE OR REPLACE VIEW puste_dzialy AS
+SELECT 
+   department_id, 
+   department_name
+FROM 
+   departments
+WHERE 
+   department_id NOT IN (SELECT department_id FROM employees);
+```
+
+---
+
+### Skopiowanie tabeli `job_grades` z HR
+```sql
+CREATE TABLE job_grades AS SELECT * FROM HR.job_grades;
+```
+
+---
+
+### Perspektywa 9: Grade dla każdego pracownika
+```sql
+CREATE OR REPLACE VIEW pracownicy_grade AS
+SELECT 
+   first_name, 
+   last_name, 
+   job_id, 
+   department_name, 
+   salary, 
+   grade_level
+FROM 
+   employees e
+JOIN 
+   job_grades jg ON e.salary BETWEEN jg.lowest_sal AND jg.highest_sal
+JOIN 
+   departments d ON e.department_id = d.department_id;
+```
+
+---
+
+### Perspektywa 10: Osoby zarabiające więcej niż średnia
+```sql
+CREATE OR REPLACE VIEW ponad_srednia_zarobki AS
+SELECT 
+   first_name, 
+   last_name, 
+   salary
+FROM 
+   employees
+WHERE 
+   salary > (SELECT AVG(salary) FROM employees)
+ORDER BY 
+   salary DESC;
+```
+
+---
+
+### Perspektywa 11: Pracownicy z departamentu z osobami o nazwisku zawierającym „u”
+```sql
+CREATE OR REPLACE VIEW pracownicy_departament_u AS
+SELECT 
+   e.employee_id, 
+   e.first_name, 
+   e.last_name
+FROM 
+   employees e
+WHERE 
+   e.department_id IN (
+      SELECT DISTINCT department_id
+      FROM employees
+      WHERE last_name LIKE '%u%'
+   );
+``` 
+
+Jeśli potrzebujesz dodatkowych wyjaśnień lub dostosowań, daj znać! 😊
